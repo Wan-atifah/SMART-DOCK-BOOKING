@@ -10,6 +10,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script>window.lucide || document.write('<script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"><\/script>');</script>
+    <!-- SheetJS (อ่านไฟล์ Excel) & Chart.js (กราฟ) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <!-- Firebase SDK สำหรับระบบ Real-time Online Database -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -83,7 +87,7 @@
                 <div>
                     <div class="flex items-center gap-2">
                         <h1 class="text-base sm:text-lg font-semibold text-slate-800 leading-tight">DOCK BOOKING SYSTEM</h1>
-                        <span id="connectionBadge" class="bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                        <span id="connectionBadge" onclick="openDbModal()" title="คลิกเพื่อตรวจสอบ/ตั้งค่าฐานข้อมูลออนไลน์" class="cursor-pointer bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
                             <span id="connectionDot" class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                             <span id="connectionText">ออนไลน์ (Real-time)</span>
                         </span>
@@ -98,6 +102,13 @@
                     <input type="date" id="selectedDate" class="bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer">
                     <span id="dateStatusBadge" class="text-[11px] font-medium px-2 py-0.5 rounded-md bg-sky-100 text-sky-700">วันนี้</span>
                 </div>
+                <button type="button" onclick="document.getElementById('analyticsSection').scrollIntoView({behavior:'smooth'})" class="hidden md:flex bg-white hover:bg-sky-50 text-sky-700 border border-sky-200 text-sm font-medium px-3 py-2 rounded-xl transition items-center gap-2">
+                    <i data-lucide="activity" class="w-4 h-4"></i><span>วิเคราะห์</span>
+                </button>
+                <button type="button" onclick="document.getElementById('importFile').click()" class="bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 text-sm font-medium px-3 py-2 rounded-xl transition flex items-center gap-2" title="นำเข้าข้อมูลจากไฟล์ Excel">
+                    <i data-lucide="upload" class="w-4 h-4"></i><span class="hidden sm:inline">Import Excel</span>
+                </button>
+                <input type="file" id="importFile" accept=".xlsx,.xlsm,.xls" class="hidden">
                 <button type="button" onclick="openBookingModal()" class="bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium px-4 py-2 rounded-xl shadow-sm shadow-sky-200 transition flex items-center gap-2">
                     <i data-lucide="plus-circle" class="w-4 h-4"></i>
                     <span>จองประตูใหม่</span>
@@ -113,6 +124,14 @@
         <div class="sm:hidden flex items-center justify-between bg-white p-3 rounded-xl border border-sky-100">
             <span class="text-sm font-medium text-slate-600">วันที่แสดงข้อมูล:</span>
             <input type="date" id="selectedDateMobile" class="text-sm font-semibold text-sky-700 bg-sky-50 px-3 py-1 rounded-lg border border-sky-200">
+        </div>
+
+        <!-- Date Navigation -->
+        <div id="dateNavBar" class="flex flex-wrap items-center gap-2 text-xs">
+            <button type="button" onclick="shiftDay(-1)" class="px-3 py-1.5 rounded-lg border border-sky-200 bg-white hover:bg-sky-50 text-sky-700 font-medium">◀ วันก่อนหน้า</button>
+            <button type="button" onclick="shiftDay(1)" class="px-3 py-1.5 rounded-lg border border-sky-200 bg-white hover:bg-sky-50 text-sky-700 font-medium">วันถัดไป ▶</button>
+            <select id="dateJump" onchange="jumpToDate(this.value)" class="bg-sky-50 border border-sky-200 rounded-lg px-2 py-1.5 text-slate-700 max-w-full"></select>
+            <button type="button" onclick="resetToToday()" class="px-3 py-1.5 rounded-lg border border-sky-200 bg-white hover:bg-sky-50 text-sky-700 font-medium">วันนี้</button>
         </div>
 
         <!-- Read-Only History Banner -->
@@ -248,6 +267,8 @@
                         <option value="Outbound">Outbound</option>
                         <option value="Fulfillment">Fulfillment</option>
                         <option value="Inventory">Inventory</option>
+                        <option value="Supply Chain">Supply Chain</option>
+                        <option value="ไม่ระบุ">ไม่ระบุ</option>
                     </select>
                     <button type="button" onclick="exportMonthlySheets()" class="text-xs bg-white hover:bg-sky-50 text-sky-700 border border-sky-200 font-medium px-3 py-2 rounded-lg transition flex items-center gap-1.5 shadow-xs">
                         <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 text-emerald-600"></i>
@@ -276,6 +297,98 @@
                 </table>
             </div>
         </div>
+
+        <!-- Analytics -->
+        <section id="analyticsSection" class="space-y-4 scroll-mt-20">
+            <div class="glass-card rounded-2xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-base font-semibold text-slate-800 flex items-center gap-2">
+                        <i data-lucide="activity" class="w-5 h-5 text-sky-500"></i>
+                        วิเคราะห์ข้อมูลการจอง (Analytics)
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-0.5">ใช้ข้อมูลรายการจองทั้งหมดในระบบ (รวมที่ Import จาก Excel) — เลือกช่วงวันที่เพื่อกรองทุกกราฟ</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                    <span class="text-slate-500">ตั้งแต่</span>
+                    <input type="date" id="anaFrom" onchange="anaSetRange()" class="bg-sky-50 border border-sky-200 rounded-lg px-2 py-1.5 text-slate-700">
+                    <span class="text-slate-500">ถึง</span>
+                    <input type="date" id="anaTo" onchange="anaSetRange()" class="bg-sky-50 border border-sky-200 rounded-lg px-2 py-1.5 text-slate-700">
+                    <button type="button" onclick="anaQuick('7')" class="px-2.5 py-1.5 rounded-lg border border-sky-200 bg-white hover:bg-sky-50 text-sky-700">7 วันล่าสุด</button>
+                    <button type="button" onclick="anaQuick('30')" class="px-2.5 py-1.5 rounded-lg border border-sky-200 bg-white hover:bg-sky-50 text-sky-700">30 วันล่าสุด</button>
+                    <button type="button" onclick="anaQuick('month')" class="px-2.5 py-1.5 rounded-lg border border-sky-200 bg-white hover:bg-sky-50 text-sky-700">เดือนนี้</button>
+                    <button type="button" onclick="anaQuick('all')" class="px-2.5 py-1.5 rounded-lg border border-sky-200 bg-white hover:bg-sky-50 text-sky-700">ทั้งหมด</button>
+                </div>
+            </div>
+
+            <div id="anaEmpty" class="hidden glass-card rounded-2xl p-10 text-center text-slate-400 text-sm">
+                ยังไม่มีข้อมูลสำหรับวิเคราะห์ — กดปุ่ม <b class="text-emerald-600">Import Excel</b> ด้านบนเพื่อนำเข้าข้อมูลการจอง
+            </div>
+
+            <div id="anaBody" class="space-y-4">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+                    <div class="glass-card rounded-2xl p-4"><p class="text-[11px] text-slate-400">ยอดจองรวมในช่วงที่เลือก</p><p class="text-2xl font-bold text-sky-600 mt-1" id="anaKpiTotal">0</p></div>
+                    <div class="glass-card rounded-2xl p-4"><p class="text-[11px] text-slate-400">จำนวนวันที่มีการจอง</p><p class="text-2xl font-bold text-slate-700 mt-1" id="anaKpiDays">0</p></div>
+                    <div class="glass-card rounded-2xl p-4"><p class="text-[11px] text-slate-400">เฉลี่ยต่อวันที่มีการจอง</p><p class="text-2xl font-bold text-emerald-600 mt-1" id="anaKpiAvg">0</p></div>
+                    <div class="glass-card rounded-2xl p-4"><p class="text-[11px] text-slate-400">วันที่จองสูงสุด</p><p class="text-lg font-bold text-amber-600 mt-1.5" id="anaKpiPeak">-</p></div>
+                </div>
+
+                <div class="glass-card rounded-2xl p-5">
+                    <h3 class="text-sm font-semibold text-slate-800 mb-3">ยอดการจองแต่ละเดือน แยกตามแผนก</h3>
+                    <div class="relative h-72"><canvas id="anaChartMonth"></canvas></div>
+                    <div class="overflow-x-auto mt-4"><table class="w-full text-xs" id="anaPivot"></table></div>
+                </div>
+
+                <div class="glass-card rounded-2xl p-5">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                        <h3 class="text-sm font-semibold text-slate-800">ยอดการจอง<span id="anaPeriodTitle">รายวัน</span></h3>
+                        <div class="flex flex-wrap items-center gap-2 text-xs">
+                            <div class="flex rounded-lg border border-sky-200 overflow-hidden" id="anaGranBtns">
+                                <button type="button" data-g="day" onclick="anaSetGran('day')" class="px-3 py-1.5">วัน</button>
+                                <button type="button" data-g="week" onclick="anaSetGran('week')" class="px-3 py-1.5 border-l border-sky-200">สัปดาห์</button>
+                                <button type="button" data-g="month" onclick="anaSetGran('month')" class="px-3 py-1.5 border-l border-sky-200">เดือน</button>
+                                <button type="button" data-g="year" onclick="anaSetGran('year')" class="px-3 py-1.5 border-l border-sky-200">ปี</button>
+                            </div>
+                            <select id="anaTeam" onchange="ana.team=this.value;renderAnalytics()" class="bg-sky-50 border border-sky-200 rounded-lg px-2 py-1.5 text-slate-700"></select>
+                        </div>
+                    </div>
+                    <div class="relative h-72"><canvas id="anaChartPeriod"></canvas></div>
+                    <p class="text-[11px] text-slate-400 mt-2">เลือกแผนก "Inbound" เพื่อดูเฉพาะยอดขาเข้า</p>
+                </div>
+
+                <div class="glass-card rounded-2xl p-5" id="savCard">
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
+                        <div>
+                            <h3 class="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                                <i data-lucide="timer" class="w-4 h-4 text-emerald-500"></i>
+                                ผลลัพธ์การประหยัดเวลาจากการใช้โปรแกรม (เปรียบเทียบรายเดือน)
+                            </h3>
+                            <p class="text-xs text-slate-500 mt-0.5">เวลาแบบเดิม (Baseline) เทียบกับเวลาที่โปรแกรมวางแผนไว้ตามตารางในชีต DATA — คำนวณจากทุกรายการจองในช่วงวันที่ที่เลือก</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2 text-xs">
+                            <select id="savScen" onchange="savScen(this.value)" class="bg-sky-50 border border-sky-200 rounded-lg px-2 py-1.5 text-slate-700">
+                                <option value="low">ประเมินแบบระมัดระวัง (เวลาเดิมต่ำสุด)</option>
+                                <option value="mid" selected>ค่ากลางของช่วงเวลาเดิม</option>
+                                <option value="high">เวลาเดิมสูงสุด</option>
+                            </select>
+                            <button type="button" onclick="savExport()" class="px-3 py-1.5 rounded-lg border border-emerald-200 bg-white hover:bg-emerald-50 text-emerald-700 font-medium">ดาวน์โหลดตาราง (CSV)</button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                        <div class="rounded-xl bg-emerald-50 border border-emerald-100 p-3"><p class="text-[11px] text-emerald-700">ประหยัดเวลารวม</p><p class="text-xl font-bold text-emerald-700 mt-0.5" id="savKpiHours">-</p></div>
+                        <div class="rounded-xl bg-sky-50 border border-sky-100 p-3"><p class="text-[11px] text-sky-700">ทำงานเร็วขึ้นเฉลี่ย</p><p class="text-xl font-bold text-sky-700 mt-0.5" id="savKpiPct">-</p></div>
+                        <div class="rounded-xl bg-amber-50 border border-amber-100 p-3"><p class="text-[11px] text-amber-700">ลดเวลาเฉลี่ยต่อคัน</p><p class="text-xl font-bold text-amber-700 mt-0.5" id="savKpiAvg">-</p></div>
+                        <div class="rounded-xl bg-purple-50 border border-purple-100 p-3"><p class="text-[11px] text-purple-700" id="savKpiDaysLbl">เทียบเป็นวันทำงาน (12 ชม.)</p><p class="text-xl font-bold text-purple-700 mt-0.5" id="savKpiDays">-</p></div>
+                    </div>
+                    <div class="relative h-72"><canvas id="anaChartSav"></canvas></div>
+                    <div class="overflow-x-auto mt-4"><table class="w-full text-xs" id="savTable"></table></div>
+                    <p class="text-[11px] text-slate-400 mt-2" id="savNote"></p>
+                    <details class="mt-3 text-xs text-slate-600">
+                        <summary class="cursor-pointer font-medium text-sky-700">สมมติฐานที่ใช้คำนวณ (แก้ไขตัวเลขได้)</summary>
+                        <div id="savAssump" class="mt-3"></div>
+                    </details>
+                </div>
+            </div>
+        </section>
     </main>
 
     <!-- Booking Modal -->
@@ -405,7 +518,67 @@
         </div>
     </div>
 
+    <!-- Import Modal -->
+    <div id="importModal" class="fixed inset-0 bg-slate-900/40 z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-xl border border-emerald-100 overflow-hidden">
+            <div class="bg-emerald-500 px-5 py-3.5 text-white font-semibold flex items-center justify-between">
+                <span id="importModalTitle">Import Excel</span>
+                <button type="button" onclick="closeImportModal()" class="text-emerald-100 hover:text-white text-lg leading-none">&times;</button>
+            </div>
+            <div id="importModalBody" class="p-5 text-sm text-slate-700 space-y-1.5"></div>
+            <div class="px-5 py-3.5 bg-slate-50 flex justify-end gap-2">
+                <button type="button" onclick="closeImportModal()" class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-sm font-medium">ปิด</button>
+                <button type="button" id="importConfirmBtn" onclick="confirmImport()" class="hidden px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium">ยืนยันนำเข้า</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Database Modal -->
+    <div id="dbModal" class="fixed inset-0 bg-slate-900/40 z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full shadow-xl border border-sky-100 overflow-hidden max-h-[90vh] flex flex-col">
+            <div class="bg-sky-500 px-5 py-3.5 text-white font-semibold flex items-center justify-between">
+                <span>ฐานข้อมูลออนไลน์ (ใช้ร่วมกันทุกหน้า)</span>
+                <button type="button" onclick="closeDbModal()" class="text-sky-100 hover:text-white text-lg leading-none">&times;</button>
+            </div>
+            <div class="p-5 text-sm text-slate-700 space-y-3 overflow-y-auto">
+                <p id="dbStatusLine" class="font-medium"></p>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Firebase Realtime Database URL</label>
+                    <input type="text" id="dbUrlInput" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-500" placeholder="https://xxxx-default-rtdb.asia-southeast1.firebasedatabase.app">
+                </div>
+                <div class="flex flex-wrap gap-2 text-xs">
+                    <button type="button" onclick="testDb()" class="px-3 py-2 rounded-lg border border-sky-200 bg-white hover:bg-sky-50 text-sky-700 font-medium">ทดสอบการเชื่อมต่อ</button>
+                    <button type="button" onclick="saveDbUrl()" class="px-3 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-medium">บันทึก URL & โหลดใหม่</button>
+                    <button type="button" onclick="uploadAllLocal()" class="px-3 py-2 rounded-lg border border-emerald-200 bg-white hover:bg-emerald-50 text-emerald-700 font-medium">อัปโหลดข้อมูลในเครื่องขึ้นฐานข้อมูล</button>
+                </div>
+                <div id="dbTestOut" class="text-xs bg-slate-50 rounded-xl p-3 min-h-[2.5rem] whitespace-pre-line text-slate-600"></div>
+                <details class="text-xs text-slate-600">
+                    <summary class="cursor-pointer font-medium text-sky-700">วิธีตั้งค่าฐานข้อมูล (ทำครั้งเดียว)</summary>
+                    <ol class="list-decimal pl-5 mt-2 space-y-1">
+                        <li>เข้า console.firebase.google.com สร้างโปรเจกต์ แล้วไปที่ Build → Realtime Database → Create Database (เลือก Singapore)</li>
+                        <li>แท็บ Rules วางโค้ดด้านล่าง แล้วกด Publish</li>
+                        <li>คัดลอก URL ของฐานข้อมูลมาวางในช่องด้านบน → ทดสอบ → บันทึก</li>
+                        <li>อัปโหลดไฟล์ HTML นี้ขึ้น GitHub Pages ทุกคนที่เปิดเว็บจะเห็นข้อมูลชุดเดียวกันแบบ Real-time</li>
+                    </ol>
+<pre class="bg-slate-800 text-emerald-200 rounded-lg p-3 mt-2 overflow-x-auto">{
+  "rules": {
+    ".read": true,
+    ".write": true
+  }
+}</pre>
+                    <p class="mt-2 text-amber-700">หมายเหตุ: Rules นี้เปิดให้ทุกคนที่รู้ URL อ่าน/เขียนได้ เหมาะกับใช้ภายในทีม ควรสำรองข้อมูลเป็นระยะ (ปุ่ม Export) และระวังโหมด "test mode" ของ Firebase ที่หมดอายุใน 30 วัน</p>
+                </details>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="hidden"></div>
+
     <script>
+        function safeIcons() {
+            try { if (window.lucide && lucide.createIcons) lucide.createIcons(); } catch (e) { console.warn('lucide error:', e); }
+        }
+
         const LOCAL_STORAGE_KEY = 'smart_dock_bookings_backup';
 
         function loadLocalBookings() {
@@ -422,13 +595,16 @@
                 localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(list));
             } catch (e) {
                 console.warn('LocalStorage save failed:', e);
+                if (typeof showToast === 'function' && !saveLocalBookings.warned) { saveLocalBookings.warned = 1; showToast('บันทึกในเครื่องไม่ได้ (เบราว์เซอร์บล็อก) — ข้อมูลจะหายเมื่อรีเฟรช ให้ใช้ฐานข้อมูลออนไลน์', 'err'); }
             }
         }
 
-        // Firebase Public Realtime Database Config
-        const firebaseConfig = {
-            databaseURL: "https://smart-dock-booking-default-rtdb.asia-southeast1.firebasedatabase.app/"
-        };
+        // Firebase Realtime Database (ฐานข้อมูลกลาง) — เปลี่ยน URL ได้ที่ป้ายสถานะมุมบน หรือแก้ค่า DEFAULT_DB_URL
+        const DEFAULT_DB_URL = "https://smart-dock-booking-default-rtdb.asia-southeast1.firebasedatabase.app/";
+        const DB_URL_KEY = 'smart_dock_db_url', PENDING_KEY = 'smart_dock_pending_sync';
+        function getDbUrl() { try { return localStorage.getItem(DB_URL_KEY) || DEFAULT_DB_URL; } catch (e) { return DEFAULT_DB_URL; } }
+        function loadPending() { try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]').map(b => [b.id, b]); } catch (e) { return []; } }
+        const firebaseConfig = { databaseURL: getDbUrl() };
         let db = null;
         let isFirebaseConnected = false;
 
@@ -485,20 +661,34 @@
         const dateInputMobile = document.getElementById('selectedDateMobile');
         const formDateInput = document.getElementById('formDate');
 
-        function setConnectionStatus(online) {
-            isFirebaseConnected = online;
-            const badge = document.getElementById('connectionBadge');
-            const dot = document.getElementById('connectionDot');
-            const text = document.getElementById('connectionText');
-            if (online) {
-                badge.className = 'bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1';
+        let dbError = '';
+        function refreshBadge() {
+            const badge = document.getElementById('connectionBadge'), dot = document.getElementById('connectionDot'), text = document.getElementById('connectionText');
+            if (!badge) return;
+            const base = 'cursor-pointer text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1 border ';
+            const pend = (typeof localExtras !== 'undefined') ? localExtras.size : 0;
+            if (isFirebaseConnected && !dbError && !pend) {
+                badge.className = base + 'bg-emerald-50 text-emerald-600 border-emerald-200';
                 dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse';
                 text.textContent = 'ออนไลน์ (Real-time)';
+            } else if (isFirebaseConnected && !dbError) {
+                badge.className = base + 'bg-sky-50 text-sky-700 border-sky-200';
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse';
+                text.textContent = `กำลังซิงก์ ${pend} รายการ`;
+            } else if (dbError) {
+                badge.className = base + 'bg-rose-50 text-rose-700 border-rose-200';
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-rose-500';
+                text.textContent = `ฐานข้อมูลมีปัญหา (${dbError}) — คลิก`;
             } else {
-                badge.className = 'bg-amber-50 text-amber-700 border border-amber-200 text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1';
+                badge.className = base + 'bg-amber-50 text-amber-700 border-amber-200';
                 dot.className = 'w-1.5 h-1.5 rounded-full bg-amber-500';
-                text.textContent = 'บันทึกในเครื่อง (Local Mode)';
+                text.textContent = 'บันทึกในเครื่อง (Local Mode)' + (pend ? ` • รอซิงก์ ${pend}` : '');
             }
+        }
+        function setConnectionStatus(online) {
+            isFirebaseConnected = online;
+            if (online && typeof flushPending === 'function') flushPending();
+            refreshBadge();
         }
 
         function showFormAlert(message) {
@@ -516,9 +706,9 @@
         }
 
         function init() {
-            dateInput.min = sixMonthsAgoIso;
+            dateInput.min = '2020-01-01';
             dateInput.value = todayIso;
-            dateInputMobile.min = sixMonthsAgoIso;
+            dateInputMobile.min = '2020-01-01';
             dateInputMobile.value = todayIso;
 
             formDateInput.min = todayIso;
@@ -550,21 +740,33 @@
                 });
 
                 db.ref('bookings').on('value', (snapshot) => {
+                    dbError = '';
                     const data = snapshot.val();
-                    bookings = data ? Object.values(data) : [];
-                    saveLocalBookings(bookings);
+                    if (data) {
+                        bookings = Object.values(data);
+                        mergeLocalExtras();
+                        saveLocalBookings(bookings);
+                    } else if (bookings.length && !init.warnedEmpty) {
+                        init.warnedEmpty = true;
+                        showToast('ฐานข้อมูลออนไลน์ยังว่าง — คลิกป้ายสถานะมุมบน แล้วกด "อัปโหลดข้อมูลในเครื่อง"');
+                    }
+                    maybeAutoDate();
+                    refreshBadge();
                     renderAll();
                 }, (error) => {
                     console.error('Firebase read error:', error);
-                    setConnectionStatus(false);
+                    dbError = error.code || 'error';
+                    refreshBadge();
                     renderAll();
                 });
             } else {
                 setConnectionStatus(false);
             }
 
+            maybeAutoDate();
+            refreshBadge();
             renderAll();
-            lucide.createIcons();
+            safeIcons();
         }
 
         function resetToToday() {
@@ -611,8 +813,10 @@
             updateDateStatusUI(currentDate);
             updateKPIs(dayBookings);
             renderTimeline(dayBookings, currentDate);
+            try { updateDateNav(); } catch (e) { console.error(e); }
+            try { renderAnalytics(); } catch (e) { console.error("Analytics error:", e); }
             renderTable(dayBookings);
-            lucide.createIcons();
+            safeIcons();
         }
 
         function updateKPIs(dayBookings) {
@@ -969,6 +1173,626 @@
             a.download = `Dock_Booking_6Months_Archive.csv`;
             a.click();
         }
+
+
+        /* ================= IMPORT EXCEL ================= */
+        const pad2 = n => String(n).padStart(2, '0');
+        const XL_TEAM_MAP = { inbound: 'Inbound', outbound: 'Outbound', fulfillment: 'Fulfillment', inventory: 'Inventory', 'supply chain': 'Supply Chain' };
+
+        function showToast(msg, type) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'fixed bottom-5 left-1/2 -translate-x-1/2 z-[60] max-w-[90vw] px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg ' + (type === 'err' ? 'bg-rose-600 text-white' : 'bg-slate-800 text-white');
+            clearTimeout(showToast.t);
+            showToast.t = setTimeout(() => t.classList.add('hidden'), 5000);
+        }
+
+        function xlDateToIso(v) {
+            let y, m, d;
+            if (typeof v === 'number') {
+                const x = new Date(Math.round((v - 25569) * 864e5));
+                y = x.getUTCFullYear(); m = x.getUTCMonth() + 1; d = x.getUTCDate();
+            } else if (v instanceof Date) {
+                y = v.getFullYear(); m = v.getMonth() + 1; d = v.getDate();
+            } else if (typeof v === 'string') {
+                const s = v.trim();
+                let r = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+                if (r) { d = +r[1]; m = +r[2]; y = +r[3]; if (y < 100) y += 2000; }
+                else {
+                    r = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                    if (!r) return null;
+                    y = +r[1]; m = +r[2]; d = +r[3];
+                }
+            } else return null;
+            if (y > 2400) y -= 543;
+            if (y < 2000 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return null;
+            return `${y}-${pad2(m)}-${pad2(d)}`;
+        }
+
+        function normSlot(v) {
+            const r = String(v || '').match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+            return r ? `${pad2(r[1])}:${r[2]} - ${pad2(r[3])}:${r[4]}` : null;
+        }
+
+        function hashStr(s) {
+            let h = 5381;
+            for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+            return (h >>> 0).toString(36);
+        }
+
+        // หาชีต + แถวหัวตาราง + คอลัมน์ จากชื่อหัวตาราง (ทนต่อการสลับคอลัมน์)
+        function findBookingSheet(wb) {
+            const norm = h => String(h == null ? '' : h).replace(/\s+/g, ' ').trim();
+            const pats = {
+                date: /^วันที่/, slot: /^slot/i, dock: /จองประตู|^dock/i, supplier: /ชื่อโรงงาน|ผู้ค้า|supplier/i,
+                plate: /ทะเบียน/, truck: /ประเภทรถ/, phone: /เบอร์/, team: /team|แผนก/i,
+                ctn: /^ctn/i, load: /type\s*load|ลักษณะ/i, remark: /remark|หมายเหตุ/i
+            };
+            const names = [...wb.SheetNames].sort((a, b) => (b === 'Dock ALL') - (a === 'Dock ALL'));
+            for (const name of names) {
+                const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' });
+                for (let r = 0; r < Math.min(rows.length, 15); r++) {
+                    const hdr = rows[r].map(norm);
+                    const col = {};
+                    for (const k in pats) {
+                        const i = hdr.findIndex(h => pats[k].test(h));
+                        if (i >= 0) col[k] = i;
+                    }
+                    if (col.date !== undefined && col.slot !== undefined && col.dock !== undefined && col.team !== undefined) {
+                        return { name, rows, col, start: r + 1 };
+                    }
+                }
+            }
+            return null;
+        }
+
+        function extractBookings(p) {
+            const g = (r, k) => p.col[k] === undefined ? '' : r[p.col[k]];
+            const clean = v => { v = String(v).trim(); return (!v || v.startsWith('เลือก') || v === '-') ? '' : v; };
+            const items = [], seen = {};
+            let scanned = 0, skipped = 0;
+            for (let i = p.start; i < p.rows.length; i++) {
+                const r = p.rows[i];
+                if (!r || r.every(c => c === '')) continue;
+                scanned++;
+                const date = xlDateToIso(g(r, 'date'));
+                const slot = normSlot(g(r, 'slot'));
+                const dm = String(g(r, 'dock')).match(/dock\s*(\d+)/i);
+                if (!date || !slot || !dm || /ตัวอย่าง/.test(String(g(r, 'remark')))) { skipped++; continue; }
+                const dock = 'Dock' + dm[1];
+                let team = String(g(r, 'team')).trim();
+                team = XL_TEAM_MAP[team.toLowerCase()] || (!team || team.startsWith('เลือก') ? 'ไม่ระบุ' : team);
+                const supplier = clean(g(r, 'supplier')) || '(ไม่ระบุ)';
+                const plate = clean(g(r, 'plate'));
+                const truckType = clean(g(r, 'truck')) || '-';
+                const loadType = clean(g(r, 'load')) || '-';
+                const ctn = g(r, 'ctn'), phone = clean(g(r, 'phone'));
+                const remark = [phone && 'โทร ' + phone, ctn !== '' && !isNaN(ctn) && ('CTN ' + ctn), clean(g(r, 'remark'))].filter(Boolean).join(' | ');
+                let id = 'XL-' + date + '-' + dock + '-' + slot.replace(/[^0-9]/g, '') + '-' + hashStr(supplier + '|' + plate);
+                seen[id] = (seen[id] || 0) + 1;
+                if (seen[id] > 1) id += '-' + seen[id];
+                items.push({ id, date, timeRange: slot, dock, team, supplier, plate, truckType, loadType, remark });
+            }
+            return { items, scanned, skipped };
+        }
+
+        const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        const localExtras = new Map(loadPending());
+        let pendingImport = null;
+
+        function openImportModal(title, bodyHtml, canConfirm) {
+            document.getElementById('importModalTitle').textContent = title;
+            document.getElementById('importModalBody').innerHTML = bodyHtml;
+            document.getElementById('importConfirmBtn').classList.toggle('hidden', !canConfirm);
+            const m = document.getElementById('importModal');
+            m.classList.remove('hidden'); m.classList.add('flex');
+        }
+        function closeImportModal() {
+            pendingImport = null;
+            const m = document.getElementById('importModal');
+            m.classList.add('hidden'); m.classList.remove('flex');
+        }
+        function confirmImport() {
+            if (!pendingImport) return;
+            const items = pendingImport;
+            closeImportModal();
+            applyImport(items);
+        }
+
+        function importExcel(file) {
+            openImportModal('กำลังอ่านไฟล์...', `<p class="break-all">${esc(file.name)}</p><p class="text-slate-400 text-xs">กรุณารอสักครู่</p>`, false);
+            if (typeof XLSX === 'undefined') {
+                openImportModal('เกิดข้อผิดพลาด', '<p class="text-rose-600">โหลดตัวอ่าน Excel (SheetJS) ไม่สำเร็จ — ตรวจสอบอินเทอร์เน็ต/การบล็อกสคริปต์ แล้วรีเฟรชหน้า</p>', false);
+                return;
+            }
+            const fr = new FileReader();
+            fr.onerror = () => openImportModal('เกิดข้อผิดพลาด', '<p class="text-rose-600">อ่านไฟล์ไม่สำเร็จ</p>', false);
+            fr.onload = () => setTimeout(() => {
+                try {
+                    const wb = XLSX.read(fr.result, { type: 'array' });
+                    const p = findBookingSheet(wb);
+                    if (!p) { openImportModal('ไม่พบข้อมูล', '<p class="text-rose-600">ไม่พบตารางที่มีหัวคอลัมน์ วันที่ / Slot / จองประตู / Team ในไฟล์นี้</p>', false); return; }
+                    const res = extractBookings(p);
+                    if (!res.items.length) { openImportModal('ไม่พบข้อมูล', `<p class="text-rose-600">ไม่พบรายการจองที่กรอกครบในชีต "${esc(p.name)}"</p>`, false); return; }
+                    const existing = new Set(bookings.map(b => b.id));
+                    const fresh = res.items.filter(i => !existing.has(i.id)).length;
+                    const ds = res.items.map(i => i.date).sort();
+                    const byTeam = {};
+                    res.items.forEach(i => { byTeam[i.team] = (byTeam[i.team] || 0) + 1; });
+                    pendingImport = res.items;
+                    openImportModal('ตรวจสอบก่อนนำเข้า',
+                        `<p>ชีต <b>${esc(p.name)}</b> — พบรายการจอง <b class="text-emerald-600">${res.items.length}</b> รายการ</p>` +
+                        `<p>ช่วงวันที่ ${formatDateDDMMYY(ds[0])} – ${formatDateDDMMYY(ds[ds.length - 1])}</p>` +
+                        `<p>เพิ่มใหม่ ${fresh} • ซ้ำกับที่มีอยู่ (อัปเดตทับ) ${res.items.length - fresh}</p>` +
+                        `<p class="text-xs text-slate-500">แผนก: ${Object.entries(byTeam).map(([t, n]) => `${esc(t)} ${n}`).join(' • ')}</p>` +
+                        `<p class="text-xs text-slate-400">ข้ามแถวว่าง/ยังไม่ได้เลือกประตู-เวลา ${res.skipped} แถว</p>`, true);
+                } catch (err) {
+                    console.error(err);
+                    openImportModal('เกิดข้อผิดพลาด', `<p class="text-rose-600">${esc(err.message || err)}</p>`, false);
+                }
+            }, 50);
+            fr.readAsArrayBuffer(file);
+        }
+
+        function savePending() {
+            try { localStorage.setItem(PENDING_KEY, JSON.stringify([...localExtras.values()])); } catch (e) { /* ignore */ }
+            refreshBadge();
+        }
+        function mergeLocalExtras() {
+            if (!localExtras.size) return;
+            const m = new Map(bookings.map(b => [b.id, b]));
+            localExtras.forEach(v => m.set(v.id, v));
+            bookings = [...m.values()];
+        }
+        let flushing = false;
+        function flushPending() {
+            if (!db || !isFirebaseConnected || !localExtras.size || flushing) return;
+            flushing = true;
+            const items = [...localExtras.values()], jobs = [];
+            for (let i = 0; i < items.length; i += 400) {
+                const part = items.slice(i, i + 400), upd = {};
+                part.forEach(b => { upd[b.id] = b; });
+                jobs.push(db.ref('bookings').update(upd).then(() => { part.forEach(b => localExtras.delete(b.id)); }));
+            }
+            Promise.all(jobs).then(() => {
+                dbError = ''; savePending();
+                showToast('ซิงก์ข้อมูลขึ้นฐานข้อมูลออนไลน์เรียบร้อย — ทุกหน้าจะเห็นข้อมูลชุดเดียวกัน');
+            }).catch(err => {
+                console.error('Firebase sync error:', err);
+                dbError = (err && err.code) || 'error'; savePending();
+                showToast('บันทึกขึ้นฐานข้อมูลไม่สำเร็จ (' + dbError + ') — คลิกป้ายสถานะมุมบนเพื่อดูวิธีแก้', 'err');
+            }).then(() => { flushing = false; });
+        }
+
+        function pickDefaultDate(list) {
+            const cnt = {};
+            list.forEach(b => { if (b.date) cnt[b.date] = (cnt[b.date] || 0) + 1; });
+            const days = Object.keys(cnt).sort();
+            if (!days.length) return null;
+            const med = days.map(d => cnt[d]).sort((a, b) => a - b)[Math.floor(days.length / 2)];
+            return [...days].reverse().find(d => cnt[d] >= med / 2) || days[days.length - 1];
+        }
+        let autoDateDone = false;
+        function maybeAutoDate() {
+            if (autoDateDone || !bookings.length) return;
+            autoDateDone = true;
+            if (bookings.some(b => b.date === todayIso)) return;
+            const d = pickDefaultDate(bookings);
+            if (d) { dateInput.value = d; dateInputMobile.value = d; }
+        }
+
+        function applyImport(items) {
+            items.forEach(i => localExtras.set(i.id, i));
+            const map = new Map(bookings.map(b => [b.id, b]));
+            items.forEach(i => map.set(i.id, i));
+            bookings = [...map.values()];
+            saveLocalBookings(bookings);
+            savePending();
+            const d = pickDefaultDate(items), earliest = items.map(i => i.date).sort()[0];
+            [dateInput, dateInputMobile].forEach(el => { if (earliest < el.min) el.min = earliest; if (d) el.value = d; });
+            ana.init = false; ana.sig = '';
+            try { renderAll(); } catch (e) { console.error('renderAll error:', e); }
+            showToast(db ? `นำเข้า ${items.length} รายการ — กำลังซิงก์ขึ้นฐานข้อมูลออนไลน์` : `นำเข้า ${items.length} รายการ (เก็บในเครื่อง)`);
+            setTimeout(() => document.getElementById('analyticsSection').scrollIntoView({ behavior: 'smooth' }), 200);
+            flushPending();
+        }
+
+        /* ===== เลื่อนดูวันย้อนหลัง ===== */
+        function setViewDate(iso) {
+            dateInput.value = iso; dateInputMobile.value = iso;
+            renderAll();
+        }
+        function shiftDay(n) {
+            const d = toD(dateInput.value || todayIso);
+            d.setUTCDate(d.getUTCDate() + n);
+            setViewDate(toIso(d));
+        }
+        function jumpToDate(v) { if (v) setViewDate(v); }
+        function updateDateNav() {
+            const sel = document.getElementById('dateJump');
+            const cnt = {};
+            bookings.forEach(b => { if (b.date) cnt[b.date] = (cnt[b.date] || 0) + 1; });
+            const days = Object.keys(cnt).sort().reverse();
+            const sig = days.length + '|' + bookings.length + '|' + (days[0] || '');
+            if (sel.dataset.sig !== sig) {
+                const byMonth = {};
+                days.forEach(d => { (byMonth[d.slice(0, 7)] = byMonth[d.slice(0, 7)] || []).push(d); });
+                sel.innerHTML = '<option value="">ไปยังวันที่มีข้อมูล (' + days.length + ' วัน)...</option>' +
+                    Object.keys(byMonth).sort().reverse().map(m => {
+                        const tot = byMonth[m].reduce((s, d) => s + cnt[d], 0);
+                        return `<optgroup label="${periodLabel(m, 'month')} (${tot} รายการ)">` +
+                            byMonth[m].map(d => `<option value="${d}">${formatDateDDMMYY(d)} — ${cnt[d]} รายการ</option>`).join('') + '</optgroup>';
+                    }).join('');
+                sel.dataset.sig = sig;
+            }
+            sel.value = cnt[dateInput.value] ? dateInput.value : '';
+        }
+
+        /* ===== ฐานข้อมูลออนไลน์: ตั้งค่า/ทดสอบ ===== */
+        function openDbModal() {
+            document.getElementById('dbUrlInput').value = getDbUrl();
+            document.getElementById('dbStatusLine').textContent = document.getElementById('connectionText').textContent + ` • ข้อมูลในหน้านี้ ${bookings.length} รายการ`;
+            document.getElementById('dbTestOut').textContent = '';
+            const m = document.getElementById('dbModal');
+            m.classList.remove('hidden'); m.classList.add('flex');
+        }
+        function closeDbModal() {
+            const m = document.getElementById('dbModal');
+            m.classList.add('hidden'); m.classList.remove('flex');
+        }
+        function saveDbUrl() {
+            const v = document.getElementById('dbUrlInput').value.trim();
+            if (!/^https:\/\/.+\.(firebaseio\.com|firebasedatabase\.app)\/?$/.test(v)) { showToast('URL ไม่ถูกต้อง (ต้องขึ้นต้น https:// และลงท้าย firebaseio.com หรือ firebasedatabase.app)', 'err'); return; }
+            try { localStorage.setItem(DB_URL_KEY, v); } catch (e) { /* ignore */ }
+            location.reload();
+        }
+        async function testDb() {
+            const out = document.getElementById('dbTestOut');
+            const url = document.getElementById('dbUrlInput').value.trim().replace(/\/+$/, '');
+            out.textContent = 'กำลังทดสอบ...';
+            let msg = '';
+            try {
+                const r = await fetch(url + '/bookings.json?shallow=true');
+                if (r.status === 200) {
+                    const j = await r.json();
+                    msg += `✔ อ่านข้อมูลได้ — ในฐานข้อมูลมี ${j ? Object.keys(j).length : 0} รายการ\n`;
+                } else if (r.status === 401 || r.status === 403) msg += '✘ อ่านไม่ได้: Rules ปฏิเสธ (แก้ ".read": true ในแท็บ Rules)\n';
+                else if (r.status === 404) msg += '✘ ไม่พบฐานข้อมูล — ตรวจสอบ URL หรือสร้าง Realtime Database ก่อน\n';
+                else msg += `✘ อ่านไม่ได้ (HTTP ${r.status})\n`;
+                const w = await fetch(url + '/_health.json', { method: 'PUT', body: JSON.stringify(Date.now()) });
+                msg += w.status === 200 ? '✔ เขียนข้อมูลได้' : (w.status === 401 || w.status === 403) ? '✘ เขียนไม่ได้: Rules ปฏิเสธ (แก้ ".write": true)' : `✘ เขียนไม่ได้ (HTTP ${w.status})`;
+            } catch (e) {
+                msg = '✘ เชื่อมต่อไม่ได้ — URL ผิด, ออฟไลน์ หรือเครือข่ายบล็อก firebasedatabase.app';
+            }
+            out.textContent = msg;
+        }
+        function uploadAllLocal() {
+            if (!bookings.length) { showToast('ไม่มีข้อมูลในหน้านี้ให้อัปโหลด', 'err'); return; }
+            if (!db) { showToast('ยังไม่ได้เชื่อมต่อ Firebase', 'err'); return; }
+            bookings.forEach(b => localExtras.set(b.id, b));
+            savePending();
+            closeDbModal();
+            showToast(`กำลังอัปโหลด ${bookings.length} รายการขึ้นฐานข้อมูล...`);
+            flushPending();
+        }
+
+        document.getElementById('importFile').addEventListener('change', e => {
+            const f = e.target.files[0];
+            e.target.value = '';
+            if (f) importExcel(f);
+        });
+
+        /* ================= ANALYTICS ================= */
+        const ana = { from: '', to: '', team: 'ALL', gran: 'day', init: false, sig: '', charts: {} };
+        const TH_M = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+        const TEAM_ORDER = ['Inbound', 'Outbound', 'Fulfillment', 'Inventory', 'Supply Chain', 'ไม่ระบุ'];
+        const TEAM_COLORS = { Inbound: '#c084fc', Outbound: '#fbbf24', Fulfillment: '#f472b6', Inventory: '#d4b499', 'Supply Chain': '#38bdf8', 'ไม่ระบุ': '#cbd5e1' };
+        const FALLBACK_COLORS = ['#34d399', '#fb923c', '#818cf8', '#2dd4bf', '#f87171'];
+
+        const toD = s => { const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); };
+        const toIso = d => d.toISOString().slice(0, 10);
+
+        function isoWeekNo(d) {
+            const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+            t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+            const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+            return Math.ceil(((t - y0) / 864e5 + 1) / 7);
+        }
+        function periodKey(iso, g) {
+            if (g === 'day') return iso;
+            if (g === 'month') return iso.slice(0, 7);
+            if (g === 'year') return iso.slice(0, 4);
+            const d = toD(iso);
+            d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+            return toIso(d);
+        }
+        function periodLabel(k, g) {
+            if (g === 'day') return formatDateDDMMYY(k);
+            if (g === 'year') return k;
+            if (g === 'month') return TH_M[+k.slice(5, 7) - 1] + ' ' + k.slice(0, 4);
+            const d = toD(k);
+            return 'W' + isoWeekNo(d) + ' (' + pad2(d.getUTCDate()) + '/' + pad2(d.getUTCMonth() + 1) + ')';
+        }
+        function periodKeys(from, to, g) {
+            const keys = [], d = toD(from), end = toD(to);
+            let guard = 0;
+            while (d <= end && guard++ < 8000) {
+                const k = periodKey(toIso(d), g);
+                if (keys[keys.length - 1] !== k) keys.push(k);
+                d.setUTCDate(d.getUTCDate() + 1);
+            }
+            return keys;
+        }
+        function teamsIn(list) {
+            const rank = t => { const i = TEAM_ORDER.indexOf(t); return i < 0 ? 99 : i; };
+            return [...new Set(list.map(b => b.team))].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+        }
+        function teamColor(t) {
+            if (!TEAM_COLORS[t]) TEAM_COLORS[t] = FALLBACK_COLORS[Object.keys(TEAM_COLORS).length % FALLBACK_COLORS.length];
+            return TEAM_COLORS[t];
+        }
+        function buildSeries(list, teams, g, from, to) {
+            const keys = periodKeys(from, to, g), idx = {};
+            keys.forEach((k, i) => { idx[k] = i; });
+            const datasets = teams.map(t => ({ label: t, data: keys.map(() => 0), backgroundColor: teamColor(t), borderRadius: 2, stack: 's' }));
+            list.forEach(b => {
+                const i = idx[periodKey(b.date, g)], j = teams.indexOf(b.team);
+                if (i !== undefined && j >= 0) datasets[j].data[i]++;
+            });
+            return { keys, labels: keys.map(k => periodLabel(k, g)), datasets };
+        }
+        function drawChart(id, data) {
+            const ctx = document.getElementById(id);
+            if (!ctx || typeof Chart === 'undefined') return;
+            const c = ana.charts[id];
+            if (c) { c.data.labels = data.labels; c.data.datasets = data.datasets; c.update(); return; }
+            ana.charts[id] = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: data.labels, datasets: data.datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 12 } },
+                        tooltip: { callbacks: { footer: its => 'รวม: ' + its.reduce((s, i) => s + i.parsed.y, 0) } }
+                    },
+                    scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } }
+                }
+            });
+        }
+
+        function anaSetRange() {
+            let f = document.getElementById('anaFrom').value, t = document.getElementById('anaTo').value;
+            if (!f || !t) return;
+            if (f > t) [f, t] = [t, f];
+            ana.from = f; ana.to = t;
+            renderAnalytics();
+        }
+        function anaQuick(k) {
+            if (k === 'all') {
+                const ds = bookings.map(b => b.date).filter(Boolean).sort();
+                if (!ds.length) return;
+                ana.from = ds[0]; ana.to = ds[ds.length - 1];
+            } else if (k === 'month') {
+                const y = +todayIso.slice(0, 4), m = +todayIso.slice(5, 7);
+                ana.from = todayIso.slice(0, 8) + '01';
+                ana.to = toIso(new Date(Date.UTC(y, m, 0)));
+            } else {
+                ana.from = getLocalIsoDate(k === '7' ? -6 : -29);
+                ana.to = todayIso;
+            }
+            renderAnalytics();
+        }
+        function anaSetGran(g) { ana.gran = g; renderAnalytics(); }
+
+        function renderAnalytics() {
+            const all = bookings.filter(b => b.team && /^20\d\d-\d\d-\d\d$/.test(b.date || ''));
+            const empty = document.getElementById('anaEmpty'), body = document.getElementById('anaBody');
+            if (!all.length) { empty.classList.remove('hidden'); body.classList.add('hidden'); return; }
+            empty.classList.add('hidden'); body.classList.remove('hidden');
+
+            if (!ana.init) {
+                const ds = all.map(b => b.date).sort();
+                ana.from = ds[0]; ana.to = ds[ds.length - 1]; ana.init = true;
+            }
+            const teamsAll = teamsIn(all);
+            if (ana.team !== 'ALL' && !teamsAll.includes(ana.team)) ana.team = 'ALL';
+
+            const sig = [all.length, ana.from, ana.to, ana.team, ana.gran].join('|');
+            if (sig === ana.sig) return;
+            ana.sig = sig;
+
+            document.getElementById('anaFrom').value = ana.from;
+            document.getElementById('anaTo').value = ana.to;
+            const sel = document.getElementById('anaTeam');
+            if (sel.dataset.sig !== teamsAll.join(',')) {
+                sel.innerHTML = '<option value="ALL">ทุกแผนก</option>' + teamsAll.map(t => `<option value="${t}">${t}</option>`).join('');
+                sel.dataset.sig = teamsAll.join(',');
+            }
+            sel.value = ana.team;
+
+            const inRange = all.filter(b => b.date >= ana.from && b.date <= ana.to);
+
+            // KPI
+            const byDay = {};
+            inRange.forEach(b => { byDay[b.date] = (byDay[b.date] || 0) + 1; });
+            const days = Object.keys(byDay).length;
+            const top = Object.entries(byDay).sort((a, b) => b[1] - a[1])[0];
+            document.getElementById('anaKpiTotal').textContent = inRange.length.toLocaleString();
+            document.getElementById('anaKpiDays').textContent = days;
+            document.getElementById('anaKpiAvg').textContent = days ? (inRange.length / days).toFixed(1) : '0';
+            document.getElementById('anaKpiPeak').textContent = top ? `${top[1]} (${formatDateDDMMYY(top[0])})` : '-';
+
+            // กราฟ 1: รายเดือน แยกแผนก (ทุกแผนก)
+            const tA = teamsIn(inRange);
+            const A = buildSeries(inRange, tA, 'month', ana.from, ana.to);
+            drawChart('anaChartMonth', A);
+            const sum = (arr) => arr.reduce((s, v) => s + v, 0);
+            const th = c => `<th class="py-2 px-3 text-right font-medium">${c}</th>`;
+            let html = '<thead><tr class="bg-slate-50 text-slate-500"><th class="py-2 px-3 text-left font-medium">เดือน</th>' + tA.map(th).join('') + th('รวม') + '</tr></thead><tbody>';
+            A.keys.forEach((k, i) => {
+                html += `<tr class="border-t border-slate-100"><td class="py-2 px-3 font-medium text-slate-700">${A.labels[i]}</td>` +
+                    A.datasets.map(d => `<td class="py-2 px-3 text-right text-slate-600">${d.data[i] || '-'}</td>`).join('') +
+                    `<td class="py-2 px-3 text-right font-semibold text-sky-700">${sum(A.datasets.map(d => d.data[i]))}</td></tr>`;
+            });
+            html += '<tr class="border-t-2 border-sky-100 bg-sky-50/50 font-semibold text-slate-800"><td class="py-2 px-3">รวม</td>' +
+                A.datasets.map(d => `<td class="py-2 px-3 text-right">${sum(d.data)}</td>`).join('') +
+                `<td class="py-2 px-3 text-right text-sky-700">${inRange.length}</td></tr></tbody>`;
+            document.getElementById('anaPivot').innerHTML = html;
+
+            // กราฟ 2: วัน/สัปดาห์/เดือน/ปี (กรองแผนกได้)
+            const listB = ana.team === 'ALL' ? inRange : inRange.filter(b => b.team === ana.team);
+            const B = buildSeries(listB, ana.team === 'ALL' ? tA : [ana.team], ana.gran, ana.from, ana.to);
+            drawChart('anaChartPeriod', B);
+            renderSavings(inRange);
+            document.getElementById('anaPeriodTitle').textContent = { day: 'รายวัน', week: 'รายสัปดาห์', month: 'รายเดือน', year: 'รายปี' }[ana.gran] + (ana.team === 'ALL' ? '' : ` — ${ana.team}`);
+            document.querySelectorAll('#anaGranBtns button').forEach(btn => {
+                const on = btn.dataset.g === ana.gran;
+                btn.className = btn.className.replace(/\s*(bg-sky-500 text-white|bg-white text-slate-600 hover:bg-sky-50)/g, '') + (on ? ' bg-sky-500 text-white' : ' bg-white text-slate-600 hover:bg-sky-50');
+            });
+        }
+
+        /* ================= SAVINGS (ประหยัดเวลา) ================= */
+        // เวลาแบบเดิม (นาที) [ต่ำสุด, สูงสุด] — ตามข้อมูลหน้างานที่ให้มา
+        const SAV = {
+            scen: 'mid', ws: 8, we: 20,
+            truck: { '4W': [55, 90], '6W': [100, 100] },
+            load: { 'เรียงมือ': [90, 90], 'พาเลทล้วน': [30, 50], 'พาเลท/เรียงมือ': [60, 60], 'กระสอบ/เรียงมือ': [40, 50] }
+        };
+        // เวลาที่โปรแกรมวางแผน (นาที) = ตารางในชีต DATA (ประเภทโหลด × ประเภทรถ)
+        const SAV_PLAN = {
+            'เรียงมือ': { '4W': 40, '4WJ': 50, '6W': 80, '10W': 100 },
+            'พาเลทล้วน': { '4W': 0, '4WJ': 0, '6W': 40, '10W': 50 },
+            'พาเลท/เรียงมือ': { '4W': 40, '4WJ': 50, '6W': 50, '10W': 80 },
+            'กระสอบ/เรียงมือ': { '4W': 40, '4WJ': 50, '6W': 80, '10W': 90 }
+        };
+        const normLoad = v => String(v || '').replace(/\s+/g, '');
+        const normTruck = v => String(v || '').trim().toUpperCase();
+
+        function savBase(b) {
+            const s = SAV.scen === 'low' ? 0 : SAV.scen === 'high' ? 1 : null;
+            const pick = a => a ? (s === null ? (a[0] + a[1]) / 2 : a[s]) : null;
+            const v = [pick(SAV.truck[normTruck(b.truckType)]), pick(SAV.load[normLoad(b.loadType)])].filter(x => x != null);
+            return v.length ? v.reduce((a, c) => a + c, 0) / v.length : null;
+        }
+        function savPlan(b) {
+            const r = SAV_PLAN[normLoad(b.loadType)];
+            const v = r ? r[normTruck(b.truckType)] : undefined;
+            return v === undefined ? null : v;
+        }
+        function savScen(v) { SAV.scen = v; ana.sig = ''; renderAnalytics(); }
+        function savWin(k, v) { v = Math.round(+v); if (k === 'ws' && v >= 0 && v < SAV.we) SAV.ws = v; if (k === 'we' && v <= 24 && v > SAV.ws) SAV.we = v; ana.sig = ''; renderSavAssump(); renderAnalytics(); }
+        function savEdit(kind, key, i, v) { SAV[kind][key][i] = Math.max(0, +v || 0); ana.sig = ''; renderAnalytics(); }
+
+        function renderSavAssump() {
+            const tbl = (title, kind) => `<div><p class="font-semibold text-slate-700 mb-1">${title}</p><table><tr class="text-slate-400"><td></td><td class="px-1">ต่ำสุด</td><td class="px-1">สูงสุด</td></tr>` +
+                Object.entries(SAV[kind]).map(([k, a]) => `<tr><td class="pr-3 py-0.5">${k}</td>` +
+                    [0, 1].map(i => `<td class="px-1"><input type="number" min="0" value="${a[i]}" onchange="savEdit('${kind}','${k}',${i},this.value)" class="w-16 border border-slate-200 rounded px-1.5 py-1"></td>`).join('') + '</tr>').join('') + '</table></div>';
+            document.getElementById('savAssump').innerHTML =
+                '<p class="mb-3">ช่วงเวลาทำการ: <input type="number" min="0" max="23" value="' + SAV.ws + '" onchange="savWin(\'ws\',this.value)" class="w-14 border border-slate-200 rounded px-1.5 py-1"> : 00 ถึง <input type="number" min="1" max="24" value="' + SAV.we + '" onchange="savWin(\'we\',this.value)" class="w-14 border border-slate-200 rounded px-1.5 py-1"> : 00 น. (นับเฉพาะเวลาที่อยู่ในช่วงนี้ เริ่มนับจากเวลาเริ่มของช่องจอง)</p><div class="grid sm:grid-cols-2 gap-4">' + tbl('เวลาโหลดเดิมตามประเภทรถ (นาที)', 'truck') + tbl('เวลาโหลดเดิมตามลักษณะการโหลด (นาที)', 'load') + '</div>' +
+                '<ul class="list-disc pl-5 mt-3 space-y-0.5 text-slate-500">' +
+                '<li>เวลาเดิมต่อรายการ = ค่าเฉลี่ยของเวลาตามประเภทรถและตามลักษณะการโหลด (ถ้ามีเฉพาะอย่างใดอย่างหนึ่ง เช่น รถ 4WJ/10W ใช้ค่าที่มี)</li>' +
+                '<li>ตัวเลือกด้านบนเลือกใช้ค่าต่ำสุด / กลาง / สูงสุด ของช่วงเวลา (เช่น 4W 55–90 นาที)</li>' +
+                '<li>เวลาด้วยโปรแกรม = ตารางระยะเวลาในชีต DATA: ' + Object.entries(SAV_PLAN).map(([l, r]) => `${l} (4W ${r['4W']}, 4WJ ${r['4WJ']}, 6W ${r['6W']}, 10W ${r['10W']})`).join(' • ') + ' นาที</li>' +
+                '<li>รายการที่ไม่ระบุประเภทรถหรือลักษณะการโหลด จะไม่ถูกนำมาคำนวณ</li></ul>';
+        }
+
+        function renderSavings(list) {
+            const WS = SAV.ws * 60, WE = SAV.we * 60, WH = SAV.we - SAV.ws, NDOCK = DOCKS.length;
+            const mo = {};
+            let skipped = 0, outside = 0;
+            list.forEach(b => {
+                const base = savBase(b), plan = savPlan(b);
+                if (base == null || plan == null) { skipped++; return; }
+                const [hh, mm] = String(b.timeRange).split(' - ')[0].split(':').map(Number);
+                const st = hh * 60 + mm;
+                if (!(st < WE)) { outside++; return; }
+                // นับเฉพาะส่วนที่อยู่ในช่วงเวลาทำการ
+                const clip = d => Math.max(0, Math.min(st + d, WE) - Math.max(st, WS));
+                const k = b.date.slice(0, 7);
+                const m = mo[k] || (mo[k] = { n: 0, base: 0, plan: 0, days: new Set() });
+                m.n++; m.base += clip(base); m.plan += clip(plan); m.days.add(b.date);
+            });
+            const keys = Object.keys(mo).sort();
+            const h = x => (x / 60).toFixed(1);
+            const pct = (b, p) => b > 0 ? (b - p) / b * 100 : 0;
+            const cap = d => d * NDOCK * WH * 60;
+            const T = keys.reduce((t, k) => ({ n: t.n + mo[k].n, base: t.base + mo[k].base, plan: t.plan + mo[k].plan, days: t.days + mo[k].days.size }), { n: 0, base: 0, plan: 0, days: 0 });
+
+            document.getElementById('savKpiHours').textContent = T.n ? h(T.base - T.plan) + ' ชม.' : '-';
+            document.getElementById('savKpiPct').textContent = T.n ? pct(T.base, T.plan).toFixed(1) + '%' : '-';
+            document.getElementById('savKpiAvg').textContent = T.n ? ((T.base - T.plan) / T.n).toFixed(1) + ' นาที' : '-';
+            document.getElementById('savKpiDaysLbl').textContent = `เทียบเป็นวันทำงาน (${WH} ชม.)`;
+            document.getElementById('savKpiDays').textContent = T.n ? ((T.base - T.plan) / 60 / WH).toFixed(1) + ' วัน' : '-';
+
+            const th = (c, left) => `<th class="py-2 px-3 ${left ? 'text-left' : 'text-right'} font-medium">${c}</th>`;
+            const td = (c, cls) => `<td class="py-2 px-3 text-right ${cls || ''}">${c}</td>`;
+            const line = (label, m, days, d, dcls, tot) => {
+                const sv = m.base - m.plan, c = cap(days);
+                return `<tr class="${tot ? 'border-t-2 border-emerald-100 bg-emerald-50/50 font-semibold text-slate-800' : 'border-t border-slate-100'}"><td class="py-2 px-3 font-medium text-slate-700">${label}</td>` +
+                    td(m.n) + td(days) + td(h(m.base)) + td(h(m.plan)) + td(h(sv), 'font-semibold text-emerald-700') + td(pct(m.base, m.plan).toFixed(1) + '%', 'font-semibold text-sky-700') +
+                    td((sv / m.n).toFixed(1)) + td((m.base / c * 100).toFixed(1) + '%') + td((m.plan / c * 100).toFixed(1) + '%') + td(d, dcls) + '</tr>';
+            };
+            let prev = null;
+            const rows = [];
+            let html = '<thead><tr class="bg-slate-50 text-slate-500">' + th('เดือน', 1) + th('จำนวนรายการ') + th('วันที่มีการจอง') + th('เวลาแบบเดิม (ชม.)') + th('เวลาด้วยโปรแกรม (ชม.)') + th('ลดเวลาได้ (ชม.)') + th('เร็วขึ้น (%)') + th('ลดต่อคัน (นาที)') + th('ใช้เวลาประตู เดิม (% ของเวลาทำการ)') + th('ใช้เวลาประตู โปรแกรม (%)') + th('เทียบเดือนก่อน') + '</tr></thead><tbody>';
+            keys.forEach(k => {
+                const m = mo[k], pc = pct(m.base, m.plan), days = m.days.size, c = cap(days);
+                const d = prev === null ? '-' : ((pc - prev >= 0 ? '+' : '') + (pc - prev).toFixed(1) + ' จุด');
+                const dcls = prev === null ? 'text-slate-400' : (pc - prev >= 0 ? 'text-emerald-600' : 'text-rose-500');
+                prev = pc;
+                const label = periodLabel(k, 'month');
+                rows.push([label, m.n, days, h(m.base), h(m.plan), h(m.base - m.plan), pc.toFixed(1), ((m.base - m.plan) / m.n).toFixed(1), (m.base / c * 100).toFixed(1), (m.plan / c * 100).toFixed(1)]);
+                html += line(label, m, days, d, dcls, false);
+            });
+            if (T.n) {
+                const c = cap(T.days);
+                rows.push(['รวม', T.n, T.days, h(T.base), h(T.plan), h(T.base - T.plan), pct(T.base, T.plan).toFixed(1), ((T.base - T.plan) / T.n).toFixed(1), (T.base / c * 100).toFixed(1), (T.plan / c * 100).toFixed(1)]);
+                html += line('รวมทั้งช่วง', T, T.days, '', '', true);
+            }
+            document.getElementById('savTable').innerHTML = html + '</tbody>';
+            ana.savRows = rows;
+            document.getElementById('savNote').textContent = `นับเฉพาะเวลาทำการ ${SAV.ws}:00–${SAV.we}:00 น. (${WH} ชม./วัน) จาก ${T.n} รายการ` +
+                (skipped ? ` • ไม่นับ ${skipped} รายการที่ไม่ระบุประเภทรถ/ลักษณะการโหลด` : '') + (outside ? ` • ไม่นับ ${outside} รายการที่เริ่มหลังเวลาทำการ` : '') +
+                ` • "ลดเวลาได้" คือชั่วโมงใช้งานประตู (Dock-hours) ที่ลดลง ไม่ใช่เวลาตามปฏิทิน เพราะหลายประตูทำงานพร้อมกัน • % ใช้เวลาประตู = เวลาใช้งาน ÷ (${NDOCK} ประตู × ${WH} ชม. × จำนวนวันที่มีการจอง) • ตารางของโปรแกรมกำหนดให้ 4W แบบ "พาเลทล้วน" ใช้เวลา 0 นาที`;
+
+            const labels = keys.map(k => periodLabel(k, 'month'));
+            const ds = [
+                { type: 'bar', label: 'เวลาแบบเดิม (ชม.)', data: keys.map(k => +h(mo[k].base)), backgroundColor: '#fbbf24', yAxisID: 'y', borderRadius: 3 },
+                { type: 'bar', label: 'เวลาด้วยโปรแกรม (ชม.)', data: keys.map(k => +h(mo[k].plan)), backgroundColor: '#38bdf8', yAxisID: 'y', borderRadius: 3 },
+                { type: 'line', label: 'เร็วขึ้น (%)', data: keys.map(k => +pct(mo[k].base, mo[k].plan).toFixed(1)), borderColor: '#10b981', backgroundColor: '#10b981', yAxisID: 'y1', tension: 0.25 }
+            ];
+            const ctx = document.getElementById('anaChartSav');
+            if (!ctx || typeof Chart === 'undefined') return;
+            const c = ana.charts.anaChartSav;
+            if (c) { c.data.labels = labels; c.data.datasets = ds; c.update(); return; }
+            ana.charts.anaChartSav = new Chart(ctx, {
+                data: { labels, datasets: ds },
+                options: {
+                    responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { beginAtZero: true, title: { display: true, text: 'ชั่วโมง' } },
+                        y1: { position: 'right', beginAtZero: true, suggestedMax: 100, grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } }
+                    }
+                }
+            });
+        }
+
+        function savExport() {
+            const r = ana.savRows;
+            if (!r || !r.length) { showToast('ยังไม่มีข้อมูลสำหรับดาวน์โหลด', 'err'); return; }
+            const csv = '\uFEFFเดือน,จำนวนรายการ,วันที่มีการจอง,เวลาแบบเดิม(ชม.),เวลาด้วยโปรแกรม(ชม.),ลดเวลาได้(ชม.),เร็วขึ้น(%),ลดต่อคัน(นาที),ใช้เวลาประตูเดิม(%),ใช้เวลาประตูโปรแกรม(%)\n' + r.map(x => x.join(',')).join('\n');
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+            a.download = 'Time_Savings_Monthly.csv';
+            a.click();
+        }
+
+        renderSavAssump();
+
+        window.addEventListener('error', e => showToast('เกิดข้อผิดพลาด: ' + e.message, 'err'));
 
         init();
     </script>
