@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Dock Booking — ระบบจองประตูรับ-ส่งสินค้า</title>
+    <!-- Google Fonts: Prompt & Sarabun -->
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Firebase SDK สำหรับระบบ Real-time Online Database -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Prompt', 'Sarabun', 'sans-serif'],
+                    },
+                    colors: {
+                        sky: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                        },
+                        pastelbrown: {
+                            50: '#faf6f3',
+                            100: '#f2e8df',
+                            200: '#e5d0be',
+                            300: '#d4b499',
+                            700: '#7c583a',
+                            800: '#5e412a',
+                            900: '#452f1e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+        .glass-card {
+            background: #ffffff;
+            border: 1px solid #e0f2fe;
+            box-shadow: 0 4px 20px -2px rgba(14, 165, 233, 0.06);
+        }
+        ::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #bae6fd;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #7dd3fc;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <header class="bg-white border-b border-sky-100 sticky top-0 z-30 shadow-xs">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="bg-sky-500 text-white p-2 rounded-xl shadow-sm shadow-sky-200">
+                    <i data-lucide="truck" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-base sm:text-lg font-semibold text-slate-800 leading-tight">DOCK BOOKING SYSTEM</h1>
+                        <span id="connectionBadge" class="bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                            <span id="connectionDot" class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span id="connectionText">ออนไลน์ (Real-time)</span>
+                        </span>
+                    </div>
+                    <p class="text-xs text-sky-600 font-medium">ระบบบริหารจัดการและจองประตูรับ-ส่งสินค้า (คลังบางพลี)</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <div class="hidden sm:flex items-center gap-2 bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-200">
+                    <i data-lucide="calendar" class="w-4 h-4 text-sky-600"></i>
+                    <input type="date" id="selectedDate" class="bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer">
+                    <span id="dateStatusBadge" class="text-[11px] font-medium px-2 py-0.5 rounded-md bg-sky-100 text-sky-700">วันนี้</span>
+                </div>
+                <button type="button" onclick="openBookingModal()" class="bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium px-4 py-2 rounded-xl shadow-sm shadow-sky-200 transition flex items-center gap-2">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                    <span>จองประตูใหม่</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- Mobile Date Picker -->
+        <div class="sm:hidden flex items-center justify-between bg-white p-3 rounded-xl border border-sky-100">
+            <span class="text-sm font-medium text-slate-600">วันที่แสดงข้อมูล:</span>
+            <input type="date" id="selectedDateMobile" class="text-sm font-semibold text-sky-700 bg-sky-50 px-3 py-1 rounded-lg border border-sky-200">
+        </div>
+
+        <!-- Read-Only History Banner -->
+        <div id="readOnlyBanner" class="hidden bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-2xl text-xs sm:text-sm flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+                <i data-lucide="history" class="w-5 h-5 text-amber-600 shrink-0"></i>
+                <span id="readOnlyText">คุณกำลังดูข้อมูลย้อนหลัง — สามารถตรวจสอบประวัติการจองได้ แต่ไม่สามารถกดจองประตูในวันที่ผ่านมาแล้วได้</span>
+            </div>
+            <button type="button" onclick="resetToToday()" class="shrink-0 bg-white hover:bg-amber-100 text-amber-800 border border-amber-300 font-medium px-3 py-1.5 rounded-xl text-xs transition">
+                กลับไปวันนี้
+            </button>
+        </div>
+
+        <!-- KPI Summary Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
+            <div class="glass-card rounded-2xl p-4 flex items-center justify-between">
+                <div>
+                    <p class="text-[11px] font-medium text-slate-400">ช่วงเวลาที่จองแล้ว</p>
+                    <p class="text-2xl font-bold text-sky-600 mt-1" id="kpiBooked">0</p>
+                    <p class="text-[11px] text-slate-500 mt-0.5">Booked Slots</p>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-500 flex items-center justify-center shrink-0">
+                    <i data-lucide="calendar-check" class="w-5 h-5"></i>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-4 flex items-center justify-between">
+                <div>
+                    <p class="text-[11px] font-medium text-slate-400">ประตูที่ว่างอยู่</p>
+                    <p class="text-2xl font-bold text-emerald-500 mt-1" id="kpiFree">70</p>
+                    <p class="text-[11px] text-slate-500 mt-0.5">Free Slots</p>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0">
+                    <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+                </div>
+            </div>
+
+            <!-- Inbound -->
+            <div class="glass-card rounded-2xl p-4 flex items-center justify-between border-purple-200 bg-purple-50/40">
+                <div>
+                    <p class="text-[11px] font-semibold text-purple-700 uppercase">Inbound</p>
+                    <p class="text-2xl font-bold text-purple-700 mt-1" id="kpiInbound">0</p>
+                    <p class="text-[11px] text-purple-500 mt-0.5">รายการจอง</p>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
+                    <i data-lucide="arrow-down-to-line" class="w-5 h-5"></i>
+                </div>
+            </div>
+
+            <!-- Outbound -->
+            <div class="glass-card rounded-2xl p-4 flex items-center justify-between border-amber-200 bg-amber-50/50">
+                <div>
+                    <p class="text-[11px] font-semibold text-amber-800 uppercase">Outbound</p>
+                    <p class="text-2xl font-bold text-amber-700 mt-1" id="kpiOutbound">0</p>
+                    <p class="text-[11px] text-amber-600 mt-0.5">รายการจอง</p>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                    <i data-lucide="arrow-up-from-line" class="w-5 h-5"></i>
+                </div>
+            </div>
+
+            <!-- Fulfillment -->
+            <div class="glass-card rounded-2xl p-4 flex items-center justify-between border-pink-200 bg-pink-50/40">
+                <div>
+                    <p class="text-[11px] font-semibold text-pink-700 uppercase">Fulfillment</p>
+                    <p class="text-2xl font-bold text-pink-700 mt-1" id="kpiFulfillment">0</p>
+                    <p class="text-[11px] text-pink-500 mt-0.5">รายการจอง</p>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center shrink-0">
+                    <i data-lucide="package" class="w-5 h-5"></i>
+                </div>
+            </div>
+
+            <!-- Inventory -->
+            <div class="glass-card rounded-2xl p-4 flex items-center justify-between border-pastelbrown-200 bg-pastelbrown-50">
+                <div>
+                    <p class="text-[11px] font-semibold text-pastelbrown-800 uppercase">Inventory</p>
+                    <p class="text-2xl font-bold text-pastelbrown-800 mt-1" id="kpiInventory">0</p>
+                    <p class="text-[11px] text-pastelbrown-700 mt-0.5">รายการจอง</p>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-pastelbrown-100 text-pastelbrown-700 flex items-center justify-center shrink-0">
+                    <i data-lucide="boxes" class="w-5 h-5"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Timeline Schedule Table -->
+        <div class="glass-card rounded-2xl overflow-hidden">
+            <div class="p-5 border-b border-sky-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-base font-semibold text-slate-800 flex items-center gap-2">
+                        <i data-lucide="layout-grid" class="w-5 h-5 text-sky-500"></i>
+                        ตารางสถานะประตูรายชั่วโมง (Dock Schedule)
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-0.5" id="timelineSubtitle">คลิกที่ช่อง <span class="text-emerald-600 font-medium">"ว่าง"</span> เพื่อทำการจองทันที หรือคลิกที่รายการจองเพื่อดูรายละเอียด</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-3 text-xs font-medium text-slate-600">
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-100 border border-emerald-400 inline-block"></span> ว่าง</span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-purple-200 border border-purple-400 inline-block"></span> Inbound</span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-200 border border-amber-400 inline-block"></span> Outbound</span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-pink-200 border border-pink-400 inline-block"></span> Fulfillment</span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-pastelbrown-200 border border-pastelbrown-300 inline-block"></span> Inventory</span>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full border-collapse text-left">
+                    <thead>
+                        <tr class="bg-sky-50/70 text-slate-600 text-xs font-semibold border-b border-sky-100" id="timelineHeader">
+                            <!-- Generated by JS -->
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 text-xs" id="timelineBody">
+                        <!-- Generated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Booking List Table -->
+        <div class="glass-card rounded-2xl overflow-hidden">
+            <div class="p-5 border-b border-sky-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-base font-semibold text-slate-800 flex items-center gap-2">
+                        <i data-lucide="list-checks" class="w-5 h-5 text-sky-500"></i>
+                        รายการจองทั้งหมด (Booking Details)
+                    </h2>
+                </div>
+                <div class="flex items-center gap-2">
+                    <select id="filterTeam" onchange="renderAll()" class="text-xs bg-sky-50 border border-sky-100 text-slate-700 rounded-lg px-3 py-2 focus:outline-none">
+                        <option value="ALL">ทุกแผนก (All Teams)</option>
+                        <option value="Inbound">Inbound</option>
+                        <option value="Outbound">Outbound</option>
+                        <option value="Fulfillment">Fulfillment</option>
+                        <option value="Inventory">Inventory</option>
+                    </select>
+                    <button type="button" onclick="exportMonthlySheets()" class="text-xs bg-white hover:bg-sky-50 text-sky-700 border border-sky-200 font-medium px-3 py-2 rounded-lg transition flex items-center gap-1.5 shadow-xs">
+                        <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 text-emerald-600"></i>
+                        Export แยกชีตรายเดือน (Excel)
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-500 text-xs font-medium border-b border-slate-100">
+                            <th class="py-3 px-4">วันที่จอง</th>
+                            <th class="py-3 px-4">เวลา (เริ่ม - สิ้นสุด)</th>
+                            <th class="py-3 px-4">ประตู (Dock)</th>
+                            <th class="py-3 px-4">แผนกผู้จอง</th>
+                            <th class="py-3 px-4">ซัพพลายเออร์ / ขนส่ง</th>
+                            <th class="py-3 px-4">ทะเบียน / ประเภทรถ</th>
+                            <th class="py-3 px-4">ลักษณะการโหลด</th>
+                            <th class="py-3 px-4 text-right">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 text-sm" id="bookingTableBody">
+                        <!-- Generated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Booking Modal -->
+    <div id="bookingModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full shadow-xl border border-sky-100 overflow-hidden">
+            <div class="bg-sky-500 px-6 py-4 flex items-center justify-between text-white">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="calendar-plus" class="w-5 h-5"></i>
+                    <h3 class="font-semibold text-base">บันทึกการจองประตู (Dock Reservation)</h3>
+                </div>
+                <button type="button" onclick="closeBookingModal()" class="text-sky-100 hover:text-white transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form id="bookingForm" onsubmit="saveBooking(event)" class="p-6 space-y-4 text-sm">
+                <div id="conflictAlert" class="hidden bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl text-xs flex items-start gap-2">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 shrink-0 mt-0.5 text-rose-500"></i>
+                    <span id="conflictMessage">ช่วงเวลานี้มีการจองประตูนี้ทับซ้อนกันอยู่ กรุณาตรวจสอบเวลาหรือเปลี่ยนประตู</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">วันที่จอง (ล่วงหน้าไม่เกิน 2 วัน) *</label>
+                        <input type="date" id="formDate" required class="w-full border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-sky-500 font-medium text-slate-700 bg-white cursor-pointer">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">แผนกผู้จอง (Team) *</label>
+                        <select id="formTeam" required class="w-full border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-sky-500 bg-sky-50/50 font-medium text-sky-900">
+                            <option value="Inbound">Inbound (แผนกรับเข้า)</option>
+                            <option value="Outbound">Outbound (แผนกขาออก)</option>
+                            <option value="Fulfillment">Fulfillment</option>
+                            <option value="Inventory">Inventory</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">เลือกประตู (Dock) *</label>
+                        <select id="formDock" required class="w-full border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-sky-500 font-medium">
+                            <option value="Dock1">Dock 1</option>
+                            <option value="Dock2">Dock 2</option>
+                            <option value="Dock3">Dock 3</option>
+                            <option value="Dock4">Dock 4</option>
+                            <option value="Dock5">Dock 5</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">ช่วงเวลา (เริ่ม - สิ้นสุด) *</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <select id="formTimeStart" required class="w-full border border-slate-200 rounded-xl px-2 py-2 text-xs focus:outline-none focus:border-sky-500">
+                                <!-- Populated by JS -->
+                            </select>
+                            <select id="formTimeEnd" required class="w-full border border-slate-200 rounded-xl px-2 py-2 text-xs focus:outline-none focus:border-sky-500">
+                                <!-- Populated by JS -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">ชื่อโรงงาน / ซัพพลายเออร์ / ขนส่ง *</label>
+                    <input type="text" id="formSupplier" required placeholder="เช่น ABC Supplier, J&T Express, บ.กิ๊ฟไวท์ เอเชีย" class="w-full border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-sky-500">
+                </div>
+
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">ทะเบียนรถ</label>
+                        <input type="text" id="formPlate" placeholder="เช่น 70-1234" class="w-full border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">ประเภทรถ</label>
+                        <select id="formTruckType" class="w-full border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-sky-500">
+                            <option value="4W">4W (รถ 4 ล้อ)</option>
+                            <option value="6W">6W (รถ 6 ล้อ)</option>
+                            <option value="10W">10W (รถ 10 ล้อ)</option>
+                            <option value="Trailer">Trailer (รถพ่วง)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">ลักษณะการโหลด *</label>
+                        <select id="formLoadType" required class="w-full border border-slate-200 rounded-xl px-2.5 py-2 focus:outline-none focus:border-sky-500 font-medium text-sky-800">
+                            <option value="เรียงมือ">เรียงมือ</option>
+                            <option value="พาเลทล้วน">พาเลทล้วน</option>
+                            <option value="พาเลท/เรียงมือ">พาเลท/เรียงมือ</option>
+                            <option value="กระสอบ/เรียงมือ">กระสอบ/เรียงมือ</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">หมายเหตุ / เบอร์ติดต่อ (Remark)</label>
+                    <input type="text" id="formRemark" placeholder="ระบุเบอร์โทรคนขับ หรือรายละเอียดเพิ่มเติม" class="w-full border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-sky-500">
+                </div>
+
+                <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                    <button type="button" onclick="closeBookingModal()" class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-medium transition">ยกเลิก</button>
+                    <button type="submit" id="submitBookingBtn" class="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-medium shadow-sm shadow-sky-200 transition">ยืนยันการจองประตู</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div id="detailModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-xl border border-sky-100 overflow-hidden">
+            <div class="bg-sky-50 px-6 py-4 border-b border-sky-100 flex items-center justify-between">
+                <h3 class="font-semibold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="info" class="w-5 h-5 text-sky-500"></i>
+                    รายละเอียดการจองประตู
+                </h3>
+                <button type="button" onclick="closeDetailModal()" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-3 text-sm" id="detailContent">
+                <!-- Populated by JS -->
+            </div>
+            <div class="px-6 py-4 bg-slate-50 flex items-center justify-between">
+                <button type="button" id="deleteBookingBtn" class="px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 font-medium text-xs flex items-center gap-1.5 transition">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    ยกเลิกการจองนี้
+                </button>
+                <button type="button" onclick="closeDetailModal()" class="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-medium text-xs transition">ปิดหน้าต่าง</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const LOCAL_STORAGE_KEY = 'smart_dock_bookings_backup';
+
+        function loadLocalBookings() {
+            try {
+                const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+                return raw ? JSON.parse(raw) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveLocalBookings(list) {
+            try {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(list));
+            } catch (e) {
+                console.warn('LocalStorage save failed:', e);
+            }
+        }
+
+        // Firebase Public Realtime Database Config
+        const firebaseConfig = {
+            databaseURL: "https://smart-dock-booking-default-rtdb.asia-southeast1.firebasedatabase.app/"
+        };
+        let db = null;
+        let isFirebaseConnected = false;
+
+        try {
+            if (typeof firebase !== 'undefined') {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+                db = firebase.database();
+            }
+        } catch (err) {
+            console.error('Firebase initialization error:', err);
+        }
+
+        const DOCKS = ['Dock1', 'Dock2', 'Dock3', 'Dock4', 'Dock5'];
+        const TIME_HOURS = [
+            '06:00', '07:00', '08:00', '09:00', '10:00', '11:00', 
+            '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', 
+            '18:00', '19:00', '20:00'
+        ];
+        const TIME_SLOTS_DISPLAY = [
+            '06:00 - 07:00', '07:00 - 08:00', '08:00 - 09:00', '09:00 - 10:00',
+            '10:00 - 11:00', '11:00 - 12:00', '12:00 - 13:00', '13:00 - 14:00',
+            '14:00 - 15:00', '15:00 - 16:00', '16:00 - 17:00', '17:00 - 18:00',
+            '18:00 - 19:00', '19:00 - 20:00'
+        ];
+
+        function formatDateDDMMYY(isoStr) {
+            if (!isoStr) return '';
+            const [y, m, d] = isoStr.split('-');
+            const yy = y.slice(-2);
+            return `${d}/${m}/${yy}`;
+        }
+
+        function getLocalIsoDate(offsetDays = 0) {
+            const d = new Date();
+            d.setDate(d.getDate() + offsetDays);
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
+        const todayIso = getLocalIsoDate(0);
+        const maxBookableIso = getLocalIsoDate(2);
+        const sixMonthsAgoIso = getLocalIsoDate(-180);
+
+        function isDateBookable(isoStr) {
+            return isoStr >= todayIso && isoStr <= maxBookableIso;
+        }
+
+        let bookings = loadLocalBookings();
+        const dateInput = document.getElementById('selectedDate');
+        const dateInputMobile = document.getElementById('selectedDateMobile');
+        const formDateInput = document.getElementById('formDate');
+
+        function setConnectionStatus(online) {
+            isFirebaseConnected = online;
+            const badge = document.getElementById('connectionBadge');
+            const dot = document.getElementById('connectionDot');
+            const text = document.getElementById('connectionText');
+            if (online) {
+                badge.className = 'bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1';
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse';
+                text.textContent = 'ออนไลน์ (Real-time)';
+            } else {
+                badge.className = 'bg-amber-50 text-amber-700 border border-amber-200 text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1';
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-amber-500';
+                text.textContent = 'บันทึกในเครื่อง (Local Mode)';
+            }
+        }
+
+        function showFormAlert(message) {
+            const alertBox = document.getElementById('conflictAlert');
+            const alertMsg = document.getElementById('conflictMessage');
+            alertMsg.textContent = message;
+            alertBox.classList.remove('hidden');
+        }
+
+        function hideFormAlert() {
+            const alertBox = document.getElementById('conflictAlert');
+            const alertMsg = document.getElementById('conflictMessage');
+            alertBox.classList.add('hidden');
+            alertMsg.textContent = 'ช่วงเวลานี้มีการจองประตูนี้ทับซ้อนกันอยู่ กรุณาตรวจสอบเวลาหรือเปลี่ยนประตู';
+        }
+
+        function init() {
+            dateInput.min = sixMonthsAgoIso;
+            dateInput.value = todayIso;
+            dateInputMobile.min = sixMonthsAgoIso;
+            dateInputMobile.value = todayIso;
+
+            formDateInput.min = todayIso;
+            formDateInput.max = maxBookableIso;
+            formDateInput.value = todayIso;
+
+            const startSel = document.getElementById('formTimeStart');
+            const endSel = document.getElementById('formTimeEnd');
+            TIME_HOURS.forEach(t => {
+                startSel.add(new Option(t, t));
+                endSel.add(new Option(t, t));
+            });
+            endSel.value = '12:00';
+
+            dateInput.addEventListener('change', (e) => {
+                if (!e.target.value) e.target.value = todayIso;
+                dateInputMobile.value = e.target.value;
+                renderAll();
+            });
+            dateInputMobile.addEventListener('change', (e) => {
+                if (!e.target.value) e.target.value = todayIso;
+                dateInput.value = e.target.value;
+                renderAll();
+            });
+
+            if (db) {
+                db.ref('.info/connected').on('value', (snap) => {
+                    setConnectionStatus(snap.val() === true);
+                });
+
+                db.ref('bookings').on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    bookings = data ? Object.values(data) : [];
+                    saveLocalBookings(bookings);
+                    renderAll();
+                }, (error) => {
+                    console.error('Firebase read error:', error);
+                    setConnectionStatus(false);
+                    renderAll();
+                });
+            } else {
+                setConnectionStatus(false);
+            }
+
+            renderAll();
+            lucide.createIcons();
+        }
+
+        function resetToToday() {
+            dateInput.value = todayIso;
+            dateInputMobile.value = todayIso;
+            renderAll();
+        }
+
+        function updateDateStatusUI(currentDate) {
+            const badge = document.getElementById('dateStatusBadge');
+            const banner = document.getElementById('readOnlyBanner');
+            const bannerText = document.getElementById('readOnlyText');
+            const subtitle = document.getElementById('timelineSubtitle');
+
+            if (currentDate === todayIso) {
+                badge.textContent = 'วันนี้';
+                badge.className = 'text-[11px] font-medium px-2 py-0.5 rounded-md bg-sky-100 text-sky-700';
+                banner.classList.add('hidden');
+                subtitle.innerHTML = 'คลิกที่ช่อง <span class="text-emerald-600 font-medium">"ว่าง"</span> เพื่อทำการจองทันที หรือคลิกที่รายการจองเพื่อดูรายละเอียด';
+            } else if (isDateBookable(currentDate)) {
+                badge.textContent = 'จองล่วงหน้า';
+                badge.className = 'text-[11px] font-medium px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700';
+                banner.classList.add('hidden');
+                subtitle.innerHTML = 'คลิกที่ช่อง <span class="text-emerald-600 font-medium">"ว่าง"</span> เพื่อทำการจองล่วงหน้า หรือคลิกที่รายการจองเพื่อดูรายละเอียด';
+            } else if (currentDate < todayIso) {
+                badge.textContent = 'ย้อนหลัง';
+                badge.className = 'text-[11px] font-medium px-2 py-0.5 rounded-md bg-amber-100 text-amber-800';
+                bannerText.textContent = `คุณกำลังดูประวัติการจองย้อนหลัง (${formatDateDDMMYY(currentDate)}) — สามารถตรวจสอบข้อมูลได้ แต่ไม่สามารถกดจองประตูในวันที่ผ่านมาแล้วได้`;
+                banner.classList.remove('hidden');
+                subtitle.innerHTML = '<span class="text-amber-600 font-medium">โหมดดูประวัติย้อนหลัง:</span> คลิกที่รายการจองเพื่อดูรายละเอียด';
+            } else {
+                badge.textContent = 'เกินกำหนด';
+                badge.className = 'text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-200 text-slate-700';
+                bannerText.textContent = `วันที่ ${formatDateDDMMYY(currentDate)} ยังไม่เปิดให้จองล่วงหน้า (ระบบเปิดให้จองล่วงหน้าได้ไม่เกิน 2 วัน)`;
+                banner.classList.remove('hidden');
+                subtitle.innerHTML = '<span class="text-slate-500 font-medium">ยังไม่เปิดให้จอง:</span> ระบบเปิดให้จองล่วงหน้าได้ไม่เกิน 2 วัน';
+            }
+        }
+
+        function renderAll() {
+            const currentDate = dateInput.value || todayIso;
+            const dayBookings = bookings.filter(b => b.date === currentDate);
+
+            updateDateStatusUI(currentDate);
+            updateKPIs(dayBookings);
+            renderTimeline(dayBookings, currentDate);
+            renderTable(dayBookings);
+            lucide.createIcons();
+        }
+
+        function updateKPIs(dayBookings) {
+            const totalSlots = DOCKS.length * TIME_SLOTS_DISPLAY.length;
+            const bookedCount = dayBookings.length;
+            const freeCount = totalSlots - bookedCount;
+            
+            const inboundCount = dayBookings.filter(b => b.team === 'Inbound').length;
+            const outboundCount = dayBookings.filter(b => b.team === 'Outbound').length;
+            const fulfillmentCount = dayBookings.filter(b => b.team === 'Fulfillment').length;
+            const inventoryCount = dayBookings.filter(b => b.team === 'Inventory').length;
+
+            document.getElementById('kpiBooked').textContent = bookedCount;
+            document.getElementById('kpiFree').textContent = freeCount > 0 ? freeCount : 0;
+            document.getElementById('kpiInbound').textContent = inboundCount;
+            document.getElementById('kpiOutbound').textContent = outboundCount;
+            document.getElementById('kpiFulfillment').textContent = fulfillmentCount;
+            document.getElementById('kpiInventory').textContent = inventoryCount;
+        }
+
+        function getTeamColorClasses(team) {
+            switch(team) {
+                case 'Inbound':
+                    return 'bg-purple-200 text-purple-950 border-purple-300';
+                case 'Outbound':
+                    return 'bg-amber-200 text-amber-950 border-amber-300';
+                case 'Fulfillment':
+                    return 'bg-pink-200 text-pink-950 border-pink-300';
+                case 'Inventory':
+                    return 'bg-pastelbrown-200 text-pastelbrown-900 border-pastelbrown-300';
+                default:
+                    return 'bg-sky-200 text-sky-900 border-sky-300';
+            }
+        }
+
+        function renderTimeline(dayBookings, currentDate) {
+            const thead = document.getElementById('timelineHeader');
+            const tbody = document.getElementById('timelineBody');
+            const canBookThisDate = isDateBookable(currentDate);
+
+            let headerHTML = `<th class="py-3 px-4 sticky left-0 bg-sky-50 z-10 min-w-[95px] border-r border-sky-100 text-sky-900">DOCK / TIME</th>`;
+            TIME_SLOTS_DISPLAY.forEach(slot => {
+                headerHTML += `<th class="py-3 px-2 text-center min-w-[115px] whitespace-nowrap">${slot}</th>`;
+            });
+            thead.innerHTML = headerHTML;
+
+            let bodyHTML = '';
+            DOCKS.forEach(dock => {
+                bodyHTML += `<tr class="hover:bg-slate-50/50 transition">`;
+                bodyHTML += `<td class="py-3 px-4 font-semibold text-slate-700 sticky left-0 bg-white z-10 border-r border-slate-100">${dock}</td>`;
+
+                TIME_SLOTS_DISPLAY.forEach(slot => {
+                    const booking = dayBookings.find(b => b.dock === dock && isSlotCovered(slot, b.timeRange));
+                    if (booking) {
+                        const badgeStyle = getTeamColorClasses(booking.team);
+
+                        bodyHTML += `
+                            <td class="p-1.5">
+                                <button type="button" onclick="openDetailModal('${booking.id}')" class="w-full text-left p-2 rounded-xl border ${badgeStyle} hover:opacity-90 transition cursor-pointer shadow-xs">
+                                    <div class="font-semibold truncate max-w-[100px]">${booking.supplier}</div>
+                                    <div class="text-[10px] opacity-80 truncate">${booking.team}</div>
+                                </button>
+                            </td>
+                        `;
+                    } else if (canBookThisDate) {
+                        const hourStart = slot.split(' - ')[0];
+                        bodyHTML += `
+                            <td class="p-1.5">
+                                <button type="button" onclick="openBookingModalWithSlot('${dock}', '${hourStart}')" class="w-full py-3 px-2 rounded-xl bg-emerald-50/60 hover:bg-sky-50 text-emerald-600 hover:text-sky-600 border border-dashed border-emerald-200 hover:border-sky-300 font-medium transition flex items-center justify-center gap-1 cursor-pointer group">
+                                    <span class="group-hover:hidden">ว่าง</span>
+                                    <span class="hidden group-hover:inline">+ จอง</span>
+                                </button>
+                            </td>
+                        `;
+                    } else {
+                        bodyHTML += `
+                            <td class="p-1.5">
+                                <div class="w-full py-3 px-2 rounded-xl bg-slate-100/70 text-slate-400 border border-slate-200/60 font-normal flex items-center justify-center cursor-not-allowed select-none">
+                                    <span>ว่าง</span>
+                                </div>
+                            </td>
+                        `;
+                    }
+                });
+                bodyHTML += `</tr>`;
+            });
+            tbody.innerHTML = bodyHTML;
+        }
+
+        function isSlotCovered(timelineSlot, bookingRange) {
+            if (!bookingRange) return false;
+            const [bStart, bEnd] = bookingRange.split(' - ');
+            const [tStart, tEnd] = timelineSlot.split(' - ');
+            return tStart >= bStart && tEnd <= bEnd;
+        }
+
+        function renderTable(dayBookings) {
+            const tbody = document.getElementById('bookingTableBody');
+            const filterTeam = document.getElementById('filterTeam').value;
+
+            let filtered = dayBookings;
+            if (filterTeam !== 'ALL') {
+                filtered = dayBookings.filter(b => b.team === filterTeam);
+            }
+
+            filtered.sort((a, b) => a.timeRange.localeCompare(b.timeRange) || a.dock.localeCompare(b.dock));
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="py-10 text-center text-slate-400 text-sm">
+                            ไม่มีรายการจองประตูในวันที่เลือก
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(b => {
+                const badgeStyle = getTeamColorClasses(b.team);
+
+                return `
+                    <tr class="hover:bg-sky-50/30 transition">
+                        <td class="py-3 px-4 font-medium text-slate-700 whitespace-nowrap">${formatDateDDMMYY(b.date)}</td>
+                        <td class="py-3 px-4 font-semibold text-slate-800 whitespace-nowrap">${b.timeRange}</td>
+                        <td class="py-3 px-4 font-semibold text-sky-600">${b.dock}</td>
+                        <td class="py-3 px-4">
+                            <span class="px-2.5 py-1 rounded-full text-xs font-medium border ${badgeStyle}">${b.team}</span>
+                        </td>
+                        <td class="py-3 px-4 font-medium text-slate-800">${b.supplier}</td>
+                        <td class="py-3 px-4 text-slate-600 text-xs">${b.plate || '-'} <span class="text-slate-400">(${b.truckType})</span></td>
+                        <td class="py-3 px-4 text-slate-700 font-medium text-xs">${b.loadType || '-'}</td>
+                        <td class="py-3 px-4 text-right">
+                            <button type="button" onclick="openDetailModal('${b.id}')" class="text-sky-600 hover:text-sky-800 text-xs font-medium underline">รายละเอียด</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function openBookingModal(dock = 'Dock1', startHour = '11:00') {
+            hideFormAlert();
+            document.getElementById('bookingForm').reset();
+
+            const currentViewDate = dateInput.value || todayIso;
+            formDateInput.value = isDateBookable(currentViewDate) ? currentViewDate : todayIso;
+
+            document.getElementById('formDock').value = dock;
+            document.getElementById('formTeam').value = 'Inbound';
+
+            document.getElementById('formTimeStart').value = startHour;
+            const startIdx = TIME_HOURS.indexOf(startHour);
+            if (startIdx !== -1 && startIdx < TIME_HOURS.length - 1) {
+                document.getElementById('formTimeEnd').value = TIME_HOURS[startIdx + 1];
+            } else {
+                document.getElementById('formTimeEnd').value = '12:00';
+            }
+
+            const submitBtn = document.getElementById('submitBookingBtn');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'ยืนยันการจองประตู';
+
+            const modal = document.getElementById('bookingModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function openBookingModalWithSlot(dock, startHour) {
+            openBookingModal(dock, startHour);
+        }
+
+        function closeBookingModal() {
+            const modal = document.getElementById('bookingModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function completeSaveSuccess(newBooking) {
+            if (!bookings.some(b => b.id === newBooking.id)) {
+                bookings.push(newBooking);
+            }
+            saveLocalBookings(bookings);
+            dateInput.value = newBooking.date;
+            dateInputMobile.value = newBooking.date;
+            renderAll();
+            closeBookingModal();
+        }
+
+        function saveBooking(e) {
+            e.preventDefault();
+            hideFormAlert();
+
+            const date = formDateInput.value;
+            if (!date || !isDateBookable(date)) {
+                showFormAlert('สามารถจองประตูได้ตั้งแต่วันนี้ และล่วงหน้าไม่เกิน 2 วันเท่านั้น');
+                return;
+            }
+
+            const dock = document.getElementById('formDock').value;
+            const timeStart = document.getElementById('formTimeStart').value;
+            const timeEnd = document.getElementById('formTimeEnd').value;
+
+            if (timeStart >= timeEnd) {
+                showFormAlert('เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้น กรุณาตรวจสอบช่วงเวลาอีกครั้ง');
+                return;
+            }
+
+            const supplier = document.getElementById('formSupplier').value.trim();
+            if (!supplier) {
+                showFormAlert('กรุณากรอกชื่อโรงงาน / ซัพพลายเออร์ / ขนส่ง');
+                return;
+            }
+
+            const timeRange = `${timeStart} - ${timeEnd}`;
+            const team = document.getElementById('formTeam').value;
+            const plate = document.getElementById('formPlate').value.trim();
+            const truckType = document.getElementById('formTruckType').value;
+            const loadType = document.getElementById('formLoadType').value;
+            const remark = document.getElementById('formRemark').value.trim();
+
+            const dayBookings = bookings.filter(b => b.date === date && b.dock === dock);
+            const hasConflict = dayBookings.some(b => {
+                const [bStart, bEnd] = b.timeRange.split(' - ');
+                return !(timeEnd <= bStart || timeStart >= bEnd);
+            });
+
+            if (hasConflict) {
+                showFormAlert('ช่วงเวลานี้มีการจองประตูนี้ทับซ้อนกันอยู่ กรุณาตรวจสอบเวลาหรือเปลี่ยนประตู');
+                return;
+            }
+
+            const id = 'BK-' + Date.now();
+            const newBooking = { id, date, timeRange, dock, team, supplier, plate, truckType, loadType, remark };
+
+            if (!db) {
+                completeSaveSuccess(newBooking);
+                return;
+            }
+
+            const submitBtn = document.getElementById('submitBookingBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'กำลังบันทึก...';
+
+            let settled = false;
+            const fallbackTimer = setTimeout(() => {
+                if (settled) return;
+                settled = true;
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'ยืนยันการจองประตู';
+                setConnectionStatus(false);
+                completeSaveSuccess(newBooking);
+            }, 1500);
+
+            db.ref('bookings/' + id).set(newBooking, (error) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(fallbackTimer);
+
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'ยืนยันการจองประตู';
+
+                if (error) {
+                    console.error('Firebase write error:', error);
+                    const detail = error.code ? ` (${error.code})` : '';
+                    showFormAlert(`บันทึกข้อมูลไม่สำเร็จ${detail} กรุณาตรวจสอบสิทธิ์ Rules ของ Firebase Realtime Database`);
+                } else {
+                    completeSaveSuccess(newBooking);
+                }
+            });
+        }
+
+        function openDetailModal(id) {
+            const booking = bookings.find(b => b.id === id);
+            if (!booking) return;
+
+            const content = document.getElementById('detailContent');
+            content.innerHTML = `
+                <div class="bg-sky-50/70 p-3.5 rounded-xl border border-sky-100 flex items-center justify-between">
+                    <div>
+                        <span class="text-xs text-slate-500">ประตู & ช่วงเวลา</span>
+                        <p class="font-bold text-sky-700 text-base">${booking.dock} | ${booking.timeRange}</p>
+                    </div>
+                    <span class="px-3 py-1 rounded-full text-xs font-semibold border ${getTeamColorClasses(booking.team)}">${booking.team}</span>
+                </div>
+                <div class="grid grid-cols-2 gap-3 pt-1">
+                    <div><span class="text-xs text-slate-400 block">วันที่จอง</span><span class="font-medium">${formatDateDDMMYY(booking.date)}</span></div>
+                    <div><span class="text-xs text-slate-400 block">ลักษณะการโหลด</span><span class="font-semibold text-sky-600">${booking.loadType || '-'}</span></div>
+                    <div class="col-span-2"><span class="text-xs text-slate-400 block">โรงงาน / ซัพพลายเออร์</span><span class="font-semibold text-slate-800">${booking.supplier}</span></div>
+                    <div class="col-span-2"><span class="text-xs text-slate-400 block">ทะเบียนรถ / ประเภท</span><span class="font-medium">${booking.plate || '-'} (${booking.truckType})</span></div>
+                    <div class="col-span-2"><span class="text-xs text-slate-400 block">หมายเหตุ</span><span class="text-slate-600">${booking.remark || '-'}</span></div>
+                </div>
+            `;
+
+            const deleteBtn = document.getElementById('deleteBookingBtn');
+            if (booking.date >= todayIso) {
+                deleteBtn.classList.remove('hidden');
+                deleteBtn.onclick = () => {
+                    if (confirm('ยืนยันการยกเลิกการจองประตูนี้ใช่หรือไม่?')) {
+                        bookings = bookings.filter(b => b.id !== id);
+                        saveLocalBookings(bookings);
+                        renderAll();
+                        closeDetailModal();
+
+                        if (db) {
+                            db.ref('bookings/' + id).remove((error) => {
+                                if (error) {
+                                    console.error('Firebase delete error:', error);
+                                }
+                            });
+                        }
+                    }
+                };
+            } else {
+                deleteBtn.classList.add('hidden');
+            }
+
+            const modal = document.getElementById('detailModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeDetailModal() {
+            const modal = document.getElementById('detailModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function exportMonthlySheets() {
+            if (bookings.length === 0) {
+                alert('ยังไม่มีข้อมูลการจองในระบบสำหรับ Export');
+                return;
+            }
+
+            const grouped = {};
+            bookings.forEach(b => {
+                const monthKey = b.date.substring(0, 7);
+                if (!grouped[monthKey]) grouped[monthKey] = [];
+                grouped[monthKey].push(b);
+            });
+
+            let csv = '\uFEFF=== DOCK BOOKING SYSTEM - MONTHLY ARCHIVE REPORT ===\n';
+            for (const [month, items] of Object.entries(grouped).sort()) {
+                csv += `\n--- ชีตประจำเดือน: ${month} (จำนวน ${items.length} รายการ) ---\n`;
+                csv += 'วันที่,ช่วงเวลา,ประตู Dock,แผนกผู้จอง,ซัพพลายเออร์/ขนส่ง,ทะเบียนรถ,ประเภทรถ,ลักษณะการโหลด,Remark\n';
+                items.forEach(b => {
+                    csv += `"${formatDateDDMMYY(b.date)}","${b.timeRange}","${b.dock}","${b.team}","${b.supplier}","${b.plate}","${b.truckType}","${b.loadType}","${b.remark}"\n`;
+                });
+            }
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Dock_Booking_6Months_Archive.csv`;
+            a.click();
+        }
+
+        init();
+    </script>
+</body>
+</html>
